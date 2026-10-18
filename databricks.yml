@@ -1,0 +1,52 @@
+Set-Content -Path "databricks.yml" -Value @'
+bundle:
+  name: prime-sample-databricks-banking
+
+resources:
+  jobs:
+    banking_medallion_poc:
+      name: "[POC] Banking Lakehouse Medallion Pipeline"
+      
+      tasks:
+        - task_key: 00_generate_data
+          spark_python_task:
+            python_file: src/00_generate_banking_data.py
+          job_cluster_key: poc_cluster
+
+        - task_key: 01_bronze_ingestion
+          depends_on:
+            - task_key: 00_generate_data
+          spark_python_task:
+            python_file: src/01_bronze_ingestion.py
+          job_cluster_key: poc_cluster
+
+        - task_key: 02_silver_cleansing
+          depends_on:
+            - task_key: 01_bronze_ingestion
+          spark_python_task:
+            python_file: src/02_silver_cleansing.py
+          job_cluster_key: poc_cluster
+
+        - task_key: 03_gold_aggregation
+          depends_on:
+            - task_key: 02_silver_cleansing
+          spark_python_task:
+            python_file: src/03_gold_aggregation.py
+          job_cluster_key: poc_cluster
+
+      job_clusters:
+        - job_cluster_key: poc_cluster
+          new_cluster:
+            spark_version: "14.3.x-scala2.12"
+            node_type_id: "Standard_DS3_v2"
+            num_workers: 1
+            spark_conf:
+              spark.databricks.delta.preview.enabled: "true"
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: ${DATABRICKS_HOST}
+'@
